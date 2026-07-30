@@ -23,7 +23,10 @@ final class FlutterApi with jni.$FlutterApi {
         getView: () => view,
         onFlutterViewAttached: (view) {},
         onFlutterViewDetached: () {},
-        dispose: () {},
+        // Drop the view from the registry and release its JNI reference,
+        // else every disposed map leaks a FrameLayout for the whole
+        // lifetime of the process.
+        dispose: () => Registry.platformViews.remove(viewId)?.release(),
         onInputConnectionLocked: () {},
         onInputConnectionUnlocked: () {},
       ),
