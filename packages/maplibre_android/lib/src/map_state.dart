@@ -453,6 +453,46 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   });
 
   @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) async => using((arena) async {
+    final jMap = _jMap;
+    if (jMap == null) return;
+
+    final cameraPosBuilder = jni.CameraPosition$Builder()..releasedBy(arena);
+    if (center != null) cameraPosBuilder.target(center.toLatLng());
+    if (zoom != null) cameraPosBuilder.zoom(zoom);
+    if (pitch != null) cameraPosBuilder.tilt(pitch);
+    if (bearing != null) cameraPosBuilder.bearing(bearing);
+    final pixelRatio = View.of(context).devicePixelRatio;
+    cameraPosBuilder.padding$1(
+      padding.left * pixelRatio,
+      padding.top * pixelRatio,
+      padding.right * pixelRatio,
+      padding.bottom * pixelRatio,
+    );
+
+    final cameraUpdate = jni.CameraUpdateFactory.newCameraPosition(
+      cameraPosBuilder.build()..releasedBy(arena),
+    )..releasedBy(arena);
+
+    final completer = Completer<void>();
+    jMap.easeCamera$3(
+      cameraUpdate,
+      duration.inMilliseconds,
+      jni.MapLibreMap$CancelableCallback.implement(
+        _CameraMovementCallback(completer),
+      )..releasedBy(arena),
+    );
+    return completer.future;
+  });
+
+  @override
   Future<void> fitBounds({
     required LngLatBounds bounds,
     double? bearing,

@@ -160,6 +160,40 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   }
 
   @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) async {
+    final mapView = _mapView;
+    if (mapView == null) return;
+
+    final ffiCamera = mapView.camera;
+    if (pitch != null) ffiCamera.pitch = pitch;
+    if (bearing != null) ffiCamera.heading = bearing;
+    if (center != null) {
+      ffiCamera.centerCoordinate = center.toCLLocationCoordinate2D();
+    }
+    if (zoom != null) {
+      ffiCamera.altitude = Helpers.zoomLevelToAltitudeWithZoomLevel(
+        zoom,
+        pitch: ffiCamera.pitch,
+        latitude: ffiCamera.centerCoordinate.latitude,
+        size: mapView.frame.size,
+      );
+    }
+    mapView.setCamera$3(
+      ffiCamera,
+      // use milliseconds for extra precision
+      withDuration: duration.inMilliseconds / 1000.0,
+      edgePadding: padding.toUIEdgeInsets(),
+    );
+  }
+
+  @override
   Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),

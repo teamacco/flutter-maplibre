@@ -66,6 +66,24 @@ abstract interface class MapController {
     EdgeInsets padding = EdgeInsets.zero,
   });
 
+  /// Ease the map camera to a new location.
+  ///
+  /// Unlike [animateCamera], the camera values are interpolated directly
+  /// between the current and the target state, without the flight curve of a
+  /// fly-to motion and its intermediate zoom changes. Prefer this method for
+  /// frequently repeated camera updates such as location tracking.
+  ///
+  /// [duration] applies on all platforms except the WebView based
+  /// implementation, which falls back to [animateCamera].
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  });
+
   /// Animate the map camera to a new location.
   Future<void> fitBounds({
     required LngLatBounds bounds,

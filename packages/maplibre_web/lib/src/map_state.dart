@@ -306,6 +306,54 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
   }
 
   @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) async {
+    final destination = center?.toLngLat();
+    _nextGestureCausedByController = true;
+    final camera = getCamera();
+    _map.easeTo(
+      interop.EaseToOptions(
+        center: destination,
+        zoom: zoom ?? camera.zoom,
+        bearing: bearing ?? camera.bearing,
+        pitch: pitch ?? camera.pitch,
+        duration: duration.inMilliseconds,
+        padding: padding.toPaddingOptions(),
+      ),
+    );
+    final completer = _movementCompleter = Completer<interop.MapLibreEvent>();
+    final _ = await completer.future;
+    _movementCompleter = null;
+
+    // check if the targeted values were reached or if the easing was cancelled
+    final newCenter = _map.getCenter();
+    bool reachedCenter;
+    if (destination == null) {
+      reachedCenter = true;
+    } else {
+      final reachedLng = (destination.lng - newCenter.lng).abs() < 0.0000001;
+      final reachedLat = (destination.lat - newCenter.lat).abs() < 0.0000001;
+      reachedCenter = reachedLat && reachedLng;
+    }
+    final reachedZoom = zoom == null || zoom == _map.getZoom();
+    final reachedBearing = bearing == null || bearing == _map.getBearing();
+    final reachedPitch = pitch == null || pitch == _map.getPitch();
+
+    if (reachedCenter && reachedZoom && reachedBearing && reachedPitch) return;
+
+    throw PlatformException(
+      code: 'CancellationException',
+      message: 'Animation cancelled.',
+    );
+  }
+
+  @override
   Future<void> fitBounds({
     required LngLatBounds bounds,
     double? bearing,
