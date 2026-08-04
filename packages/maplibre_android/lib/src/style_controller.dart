@@ -1,6 +1,12 @@
 part of 'map_state.dart';
 
 /// Android specific implementation of the [StyleController].
+///
+/// Every method guards against a released [_jStyle]: when the style reloads,
+/// the previous controller gets disposed but callers may still hold it (e.g.
+/// an operation suspended on an await). Calling into JNI with the deleted
+/// global reference would abort the whole process with a JNI error, so a
+/// stale controller silently no-ops instead.
 class StyleControllerAndroid extends StyleController {
   const StyleControllerAndroid._(this._jStyle);
 
@@ -13,6 +19,7 @@ class StyleControllerAndroid extends StyleController {
     String? aboveLayerId,
     int? atIndex,
   }) async => using((arena) {
+    if (_jStyle.isReleased) return;
     final jId = layer.id.toJString()..releasedBy(arena);
     final prevLayer = _jStyle.getLayer(jId);
     if (prevLayer != null) {
@@ -140,6 +147,7 @@ class StyleControllerAndroid extends StyleController {
 
   @override
   Future<void> addSource(Source source) async => using((arena) {
+    if (_jStyle.isReleased) return;
     final jId = source.id.toJString()..releasedBy(arena);
     final prevSource = _jStyle.getSource(jId);
     if (prevSource != null) {
@@ -221,15 +229,20 @@ class StyleControllerAndroid extends StyleController {
   });
 
   @override
-  Future<void> removeLayer(String id) async =>
-      _jStyle.removeLayer(id.toJString());
+  Future<void> removeLayer(String id) async {
+    if (_jStyle.isReleased) return;
+    _jStyle.removeLayer(id.toJString());
+  }
 
   @override
-  Future<void> removeSource(String id) async =>
-      _jStyle.removeSource(id.toJString());
+  Future<void> removeSource(String id) async {
+    if (_jStyle.isReleased) return;
+    _jStyle.removeSource(id.toJString());
+  }
 
   @override
   Future<void> addImage(String id, Uint8List bytes) async => using((arena) {
+    if (_jStyle.isReleased) return;
     final jId = id.toJString()..releasedBy(arena);
     final pixelRatio = PlatformDispatcher.instance.views.first.devicePixelRatio;
     final targetDensity = (pixelRatio * 160).round();
@@ -251,14 +264,17 @@ class StyleControllerAndroid extends StyleController {
   });
 
   @override
-  Future<void> removeImage(String id) async =>
-      _jStyle.removeImage(id.toJString());
+  Future<void> removeImage(String id) async {
+    if (_jStyle.isReleased) return;
+    _jStyle.removeImage(id.toJString());
+  }
 
   @override
   Future<void> updateGeoJsonSource({
     required String id,
     required String data,
   }) async {
+    if (_jStyle.isReleased) return;
     final source = _jStyle.getSourceAs<jni.GeoJsonSource>(id.toJString());
     source?.geoJson$3 = data.toJString();
   }
@@ -268,6 +284,7 @@ class StyleControllerAndroid extends StyleController {
 
   @override
   List<String> getAttributionsSync() => using((arena) {
+    if (_jStyle.isReleased) return const [];
     try {
       final jSources = _jStyle.sources..releasedBy(arena);
       final attributions = <String>[];
@@ -288,6 +305,7 @@ class StyleControllerAndroid extends StyleController {
 
   @override
   List<String> getLayerIds() {
+    if (_jStyle.isReleased) return const [];
     final layers = _jStyle.layers;
     return layers
         .asDart()
