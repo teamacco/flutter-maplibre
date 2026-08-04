@@ -393,6 +393,25 @@ class MapLibreMapStateWebView extends MapLibreMapState {
     _webSocket?.sendBytes(data);
   }
 
+  // The WebSocket protocol has no easeTo action; fall back to the fly-to
+  // motion of animateCamera.
+  @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) => animateCamera(
+    center: center,
+    zoom: zoom,
+    bearing: bearing,
+    pitch: pitch,
+    webMaxDuration: duration,
+    padding: padding,
+  );
+
   @override
   Future<void> moveCamera({
     Geographic? center,
