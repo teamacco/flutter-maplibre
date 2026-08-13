@@ -170,6 +170,16 @@ abstract interface class MapController {
   /// You can apply them again after the style has been loaded.
   // TODO(mhernz): what kind of URLs?
   void setStyle(String style);
+
+  /// Request a single new frame of the map.
+  ///
+  /// The native SDKs only redraw when something asks them to, typically a
+  /// camera change or a gesture. A source updated while the map sits idle stays
+  /// invisible until the next such event. Call this right after an update that
+  /// has to show up without waiting for one.
+  ///
+  /// Implementations that redraw on their own do nothing here.
+  void triggerRepaint();
 }
 
 /// The mode how the bearing should get tracked on the map.

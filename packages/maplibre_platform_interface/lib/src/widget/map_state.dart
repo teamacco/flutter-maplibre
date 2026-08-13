@@ -26,6 +26,10 @@ abstract class MapLibreMapState extends State<MapLibreMap>
   /// is set.
   bool isInitialized = false;
 
+  /// Platforms whose renderer needs an explicit request override this.
+  @override
+  void triggerRepaint() {}
+
   @override
   Widget build(BuildContext context) {
     return Stack(

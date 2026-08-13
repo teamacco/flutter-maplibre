@@ -351,6 +351,9 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   @override
   void didHaveMemoryPressure() => _mapView?.onLowMemory();
 
+  @override
+  void triggerRepaint() => _jMap?.triggerRepaint();
+
   Future<void> _updateOptions(MapLibreMap oldWidget) async => using((arena) {
     final jMap = _jMap;
     // jMap can be null if the widget rebuilds while the map hasn't been initialized.
