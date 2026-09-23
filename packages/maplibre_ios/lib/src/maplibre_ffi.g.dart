@@ -955,9 +955,11 @@ _objc_msgSend_r8gdi7(_class_Helpers, _sel_setValueWithTarget_field_value_, targe
   }
 
 
-  /// takeSnapshotWithMapView:
-  static objc.NSData? takeSnapshotWithMapView(MLNMapView mapView) {
-    final $ret = _objc_msgSend_1sotr3r(_class_Helpers, _sel_takeSnapshotWithMapView_, mapView.ref.pointer);
+  /// Draws the map view into premultiplied RGBA pixels, rows of width * 4
+  /// bytes, width and height being the bounds size multiplied by scale and
+  /// rounded. The PNG encoding is left to the caller, off the main thread.
+  static objc.NSData? takeSnapshotWithMapView(MLNMapView mapView, {required double scale}) {
+    final $ret = _objc_msgSend_6plvbo(_class_Helpers, _sel_takeSnapshotWithMapView_scale_, mapView.ref.pointer, scale);
     return $ret.address == 0 ? null : objc.NSData.fromPointer($ret, retain: true, release: true);
   }
 
@@ -32374,7 +32376,7 @@ late final _sel_systemImageNamed_variableValue_withConfiguration_ = objc.registe
 late final _sel_systemImageNamed_withConfiguration_ = objc.registerName("systemImageNamed:withConfiguration:");
 late final _sel_systemPointerStyle = objc.registerName("systemPointerStyle");
 late final _sel_tag = objc.registerName("tag");
-late final _sel_takeSnapshotWithMapView_ = objc.registerName("takeSnapshotWithMapView:");
+late final _sel_takeSnapshotWithMapView_scale_ = objc.registerName("takeSnapshotWithMapView:scale:");
 late final _sel_targetCoordinate = objc.registerName("targetCoordinate");
 late final _sel_targetForAction_withSender_ = objc.registerName("targetForAction:withSender:");
 late final _sel_text = objc.registerName("text");

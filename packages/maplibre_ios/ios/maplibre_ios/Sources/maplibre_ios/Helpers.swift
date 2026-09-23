@@ -115,12 +115,36 @@ public class Helpers: NSObject {
         MLNAltitudeForZoomLevel(zoomLevel, pitch, latitude, size)
     }
 
-    @objc public static func takeSnapshot(mapView: MLNMapView) -> Data? {
-        var drawn = false
-        let image = UIGraphicsImageRenderer(bounds: mapView.bounds).image { _ in
-            drawn = mapView.drawHierarchy(in: mapView.bounds, afterScreenUpdates: false)
+    /// Draws the map view into premultiplied RGBA pixels, rows of width * 4
+    /// bytes, width and height being the bounds size multiplied by scale and
+    /// rounded. The PNG encoding is left to the caller, off the main thread.
+    @objc public static func takeSnapshot(mapView: MLNMapView, scale: Double) -> Data? {
+        let bounds = mapView.bounds
+        let width = Int((Double(bounds.width) * scale).rounded())
+        let height = Int((Double(bounds.height) * scale).rounded())
+        guard width > 0, height > 0 else { return nil }
+        let bytesPerRow = width * 4
+        var pixels = Data(count: bytesPerRow * height)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.scaleBy(
+                x: CGFloat(width) / bounds.width,
+                y: -CGFloat(height) / bounds.height
+            )
+            UIGraphicsPushContext(context)
+            defer { UIGraphicsPopContext() }
+            return mapView.drawHierarchy(in: bounds, afterScreenUpdates: false)
         }
-        return drawn ? image.pngData() : nil
+        return drawn ? pixels : nil
     }
 }
 

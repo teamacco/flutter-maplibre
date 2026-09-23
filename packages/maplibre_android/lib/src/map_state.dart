@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -339,56 +340,60 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   void triggerRepaint() => _jMap?.triggerRepaint();
 
   @override
-  Future<Uint8List?> takeSnapshot() async => using((arena) async {
+  Future<Uint8List?> takeSnapshot() async {
     final jMap = _jMap;
     if (jMap == null) return null;
 
-    final completer = Completer<Uint8List>();
-    jMap.snapshot(
-      jni.MapLibreMap$SnapshotReadyCallback.implement(
-        jni.$MapLibreMap$SnapshotReadyCallback(
-          onSnapshotReady: (bitmap) => using((arena) {
-            bitmap.releasedBy(arena);
-            try {
-              completer.complete(_encodePng(bitmap));
-            } on Object catch (error, stackTrace) {
-              completer.completeError(error, stackTrace);
-            }
-          }),
-        ),
-      )..releasedBy(arena),
+    final completer = Completer<_BitmapPixels>();
+    final callback = jni.MapLibreMap$SnapshotReadyCallback.implement(
+      jni.$MapLibreMap$SnapshotReadyCallback(
+        onSnapshotReady: (bitmap) => using((arena) {
+          bitmap.releasedBy(arena);
+          try {
+            completer.complete(_copyPixels(bitmap));
+          } on Object catch (error, stackTrace) {
+            completer.completeError(error, stackTrace);
+          }
+        }),
+      ),
     );
-    return completer.future;
-  });
+    jMap.snapshot(callback);
+    final _BitmapPixels snapshot;
+    try {
+      snapshot = await completer.future;
+    } finally {
+      callback.release();
+    }
+    return _encodePng(
+      snapshot.pixels,
+      width: snapshot.width,
+      height: snapshot.height,
+      rowBytes: snapshot.rowBytes,
+    );
+  }
 
-  /// android.graphics.Bitmap is not part of the generated bindings, its PNG
-  /// encoding goes through the raw JNI API.
-  Uint8List _encodePng(JObject bitmap) => using((arena) {
-    final jFormatClass = JClass.forName(
-      r'android/graphics/Bitmap$CompressFormat',
-    )..releasedBy(arena);
-    final jPng =
-        jFormatClass
-            .staticFieldId('PNG', r'Landroid/graphics/Bitmap$CompressFormat;')
-            .get(jFormatClass, JObject.type)
-          ..releasedBy(arena);
-    final jStreamClass = JClass.forName('java/io/ByteArrayOutputStream')
+  /// android.graphics.Bitmap is not part of the generated bindings, its
+  /// pixels are read through the raw JNI API. The copy is cheap, the PNG
+  /// encoding is left to the engine, off the main thread.
+  _BitmapPixels _copyPixels(JObject bitmap) => using((arena) {
+    final jBitmapClass = bitmap.jClass..releasedBy(arena);
+    int intGetter(String name) => jBitmapClass
+        .instanceMethodId(name, '()I')
+        .call(bitmap, jint.type, const []);
+    final width = intGetter('getWidth');
+    final height = intGetter('getHeight');
+    final rowBytes = intGetter('getRowBytes');
+    final jBuffer = JByteBuffer.allocateDirect(rowBytes * height)
       ..releasedBy(arena);
-    final jStream =
-        jStreamClass.constructorId('()V').call<JObject>(jStreamClass, const [])
-          ..releasedBy(arena);
-    bitmap.jClass
-        .instanceMethodId(
-          'compress',
-          r'(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z',
-        )
-        .call(bitmap, jboolean.type, [jPng, JValueInt(100), jStream]);
-    final jBytes =
-        jStreamClass
-            .instanceMethodId('toByteArray', '()[B')
-            .call(jStream, JByteArray.type, const [])
-          ..releasedBy(arena);
-    return Uint8List.fromList(jBytes.getRange(0, jBytes.length));
+    jBitmapClass
+        .instanceMethodId('copyPixelsToBuffer', '(Ljava/nio/Buffer;)V')
+        .call(bitmap, jvoid.type, [jBuffer]);
+    return (
+      pixels: Uint8List.fromList(jBuffer.asUint8List()),
+      width: width,
+      height: height,
+      rowBytes: rowBytes,
+    );
   });
 
   Future<void> _updateOptions(MapLibreMap oldWidget) async => using((arena) {
@@ -950,4 +955,41 @@ final class _MapReadyCallback with jni.$OnMapReadyCallback {
   void onMapReady(jni.MapLibreMap jMap) {
     callback.call(jMap);
   }
+}
+
+/// Premultiplied RGBA pixels, the memory layout of an ARGB_8888 bitmap.
+typedef _BitmapPixels = ({
+  Uint8List pixels,
+  int width,
+  int height,
+  int rowBytes,
+});
+
+/// Encodes premultiplied RGBA pixels as PNG. The engine encodes off the
+/// platform thread, which keeps the UI responsive.
+Future<Uint8List> _encodePng(
+  Uint8List pixels, {
+  required int width,
+  required int height,
+  required int rowBytes,
+}) async {
+  if (pixels.length < rowBytes * height) {
+    throw StateError('The map snapshot has fewer pixels than its size.');
+  }
+  final buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
+  final descriptor = ui.ImageDescriptor.raw(
+    buffer,
+    width: width,
+    height: height,
+    rowBytes: rowBytes,
+    pixelFormat: ui.PixelFormat.rgba8888,
+  );
+  final codec = await descriptor.instantiateCodec();
+  final frame = await codec.getNextFrame();
+  final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+  frame.image.dispose();
+  codec.dispose();
+  descriptor.dispose();
+  buffer.dispose();
+  return png!.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
 }

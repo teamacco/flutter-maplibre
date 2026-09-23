@@ -334,7 +334,10 @@ SWIFT_CLASS_NAMED("Helpers")
 + (void)removeOfflinePackProgressListenerWithCallbacks:(id <OfflinePackProgressCallbacks> _Nonnull)callbacks;
 + (MLNTilePyramidOfflineRegion * _Nonnull)createTilePyramidOfflineRegionWithStyleURL:(NSURL * _Nullable)styleURL south:(double)south west:(double)west east:(double)east north:(double)north fromZoomLevel:(double)minZoom toZoomLevel:(double)maxZoom SWIFT_WARN_UNUSED_RESULT;
 + (double)zoomLevelToAltitudeWithZoomLevel:(double)zoomLevel pitch:(CGFloat)pitch latitude:(double)latitude size:(CGSize)size SWIFT_WARN_UNUSED_RESULT;
-+ (NSData * _Nullable)takeSnapshotWithMapView:(MLNMapView * _Nonnull)mapView SWIFT_WARN_UNUSED_RESULT;
+/// Draws the map view into premultiplied RGBA pixels, rows of width * 4
+/// bytes, width and height being the bounds size multiplied by scale and
+/// rounded. The PNG encoding is left to the caller, off the main thread.
++ (NSData * _Nullable)takeSnapshotWithMapView:(MLNMapView * _Nonnull)mapView scale:(double)scale SWIFT_WARN_UNUSED_RESULT;
 - (nonnull instancetype)init OBJC_DESIGNATED_INITIALIZER;
 @end
 

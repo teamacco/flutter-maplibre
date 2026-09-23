@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -197,11 +198,19 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   Future<Uint8List?> takeSnapshot() async {
     final mapView = _mapView;
     if (mapView == null) return null;
-    final data = Helpers.takeSnapshotWithMapView(mapView);
-    if (data == null) {
+    final scale = View.of(context).devicePixelRatio;
+    final pixels = Helpers.takeSnapshotWithMapView(mapView, scale: scale);
+    if (pixels == null) {
       throw Exception('The map view could not be drawn into an image.');
     }
-    return data.toList();
+    final size = mapView.bounds.size;
+    final width = (size.width * scale).round();
+    return _encodePng(
+      pixels.toList(),
+      width: width,
+      height: (size.height * scale).round(),
+      rowBytes: width * 4,
+    );
   }
 
   @override
@@ -578,4 +587,33 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   void _regionIsChangingWithReason(MLNMapView mapView, int reason) {
     _onCameraMoved(mapView);
   }
+}
+
+/// Encodes premultiplied RGBA pixels as PNG. The engine encodes off the
+/// platform thread, which keeps the UI responsive.
+Future<Uint8List> _encodePng(
+  Uint8List pixels, {
+  required int width,
+  required int height,
+  required int rowBytes,
+}) async {
+  if (pixels.length < rowBytes * height) {
+    throw StateError('The map snapshot has fewer pixels than its size.');
+  }
+  final buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
+  final descriptor = ui.ImageDescriptor.raw(
+    buffer,
+    width: width,
+    height: height,
+    rowBytes: rowBytes,
+    pixelFormat: ui.PixelFormat.rgba8888,
+  );
+  final codec = await descriptor.instantiateCodec();
+  final frame = await codec.getNextFrame();
+  final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+  frame.image.dispose();
+  codec.dispose();
+  descriptor.dispose();
+  buffer.dispose();
+  return png!.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
 }
