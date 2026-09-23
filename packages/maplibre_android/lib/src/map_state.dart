@@ -338,6 +338,59 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   @override
   void triggerRepaint() => _jMap?.triggerRepaint();
 
+  @override
+  Future<Uint8List?> takeSnapshot() async => using((arena) async {
+    final jMap = _jMap;
+    if (jMap == null) return null;
+
+    final completer = Completer<Uint8List>();
+    jMap.snapshot(
+      jni.MapLibreMap$SnapshotReadyCallback.implement(
+        jni.$MapLibreMap$SnapshotReadyCallback(
+          onSnapshotReady: (bitmap) => using((arena) {
+            bitmap.releasedBy(arena);
+            try {
+              completer.complete(_encodePng(bitmap));
+            } on Object catch (error, stackTrace) {
+              completer.completeError(error, stackTrace);
+            }
+          }),
+        ),
+      )..releasedBy(arena),
+    );
+    return completer.future;
+  });
+
+  /// android.graphics.Bitmap is not part of the generated bindings, its PNG
+  /// encoding goes through the raw JNI API.
+  Uint8List _encodePng(JObject bitmap) => using((arena) {
+    final jFormatClass = JClass.forName(
+      r'android/graphics/Bitmap$CompressFormat',
+    )..releasedBy(arena);
+    final jPng =
+        jFormatClass
+            .staticFieldId('PNG', r'Landroid/graphics/Bitmap$CompressFormat;')
+            .get(jFormatClass, JObject.type)
+          ..releasedBy(arena);
+    final jStreamClass = JClass.forName('java/io/ByteArrayOutputStream')
+      ..releasedBy(arena);
+    final jStream =
+        jStreamClass.constructorId('()V').call<JObject>(jStreamClass, const [])
+          ..releasedBy(arena);
+    bitmap.jClass
+        .instanceMethodId(
+          'compress',
+          r'(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z',
+        )
+        .call(bitmap, jboolean.type, [jPng, JValueInt(100), jStream]);
+    final jBytes =
+        jStreamClass
+            .instanceMethodId('toByteArray', '()[B')
+            .call(jStream, JByteArray.type, const [])
+          ..releasedBy(arena);
+    return Uint8List.fromList(jBytes.getRange(0, jBytes.length));
+  });
+
   Future<void> _updateOptions(MapLibreMap oldWidget) async => using((arena) {
     final jMap = _jMap;
     // jMap can be null if the widget rebuilds while the map hasn't been initialized.

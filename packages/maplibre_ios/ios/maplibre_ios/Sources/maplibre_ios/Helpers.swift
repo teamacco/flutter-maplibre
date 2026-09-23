@@ -114,6 +114,14 @@ public class Helpers: NSObject {
     @objc public static func zoomLevelToAltitude(zoomLevel: Double, pitch: CGFloat, latitude: Double, size: CGSize) -> Double {
         MLNAltitudeForZoomLevel(zoomLevel, pitch, latitude, size)
     }
+
+    @objc public static func takeSnapshot(mapView: MLNMapView) -> Data? {
+        var drawn = false
+        let image = UIGraphicsImageRenderer(bounds: mapView.bounds).image { _ in
+            drawn = mapView.drawHierarchy(in: mapView.bounds, afterScreenUpdates: false)
+        }
+        return drawn ? image.pngData() : nil
+    }
 }
 
 @objc(OfflinePackProgressCallbacks)

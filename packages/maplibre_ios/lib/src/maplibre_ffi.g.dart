@@ -955,6 +955,13 @@ _objc_msgSend_r8gdi7(_class_Helpers, _sel_setValueWithTarget_field_value_, targe
   }
 
 
+  /// takeSnapshotWithMapView:
+  static objc.NSData? takeSnapshotWithMapView(MLNMapView mapView) {
+    final $ret = _objc_msgSend_1sotr3r(_class_Helpers, _sel_takeSnapshotWithMapView_, mapView.ref.pointer);
+    return $ret.address == 0 ? null : objc.NSData.fromPointer($ret, retain: true, release: true);
+  }
+
+
   /// zoomLevelToAltitudeWithZoomLevel:pitch:latitude:size:
   static double zoomLevelToAltitudeWithZoomLevel(double zoomLevel, {required double pitch,required double latitude,required objc.CGSize size}) {
     return objc.useMsgSendVariants ? _objc_msgSend_1aulivdFpret(_class_Helpers, _sel_zoomLevelToAltitudeWithZoomLevel_pitch_latitude_size_, zoomLevel, pitch, latitude, size) : _objc_msgSend_1aulivd(_class_Helpers, _sel_zoomLevelToAltitudeWithZoomLevel_pitch_latitude_size_, zoomLevel, pitch, latitude, size);
@@ -32367,6 +32374,7 @@ late final _sel_systemImageNamed_variableValue_withConfiguration_ = objc.registe
 late final _sel_systemImageNamed_withConfiguration_ = objc.registerName("systemImageNamed:withConfiguration:");
 late final _sel_systemPointerStyle = objc.registerName("systemPointerStyle");
 late final _sel_tag = objc.registerName("tag");
+late final _sel_takeSnapshotWithMapView_ = objc.registerName("takeSnapshotWithMapView:");
 late final _sel_targetCoordinate = objc.registerName("targetCoordinate");
 late final _sel_targetForAction_withSender_ = objc.registerName("targetForAction:withSender:");
 late final _sel_text = objc.registerName("text");

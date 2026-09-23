@@ -194,6 +194,17 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   }
 
   @override
+  Future<Uint8List?> takeSnapshot() async {
+    final mapView = _mapView;
+    if (mapView == null) return null;
+    final data = Helpers.takeSnapshotWithMapView(mapView);
+    if (data == null) {
+      throw Exception('The map view could not be drawn into an image.');
+    }
+    return data.toList();
+  }
+
+  @override
   Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),

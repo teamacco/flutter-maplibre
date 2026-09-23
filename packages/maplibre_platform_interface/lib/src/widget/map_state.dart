@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 import 'package:maplibre_platform_interface/src/widget/inherited_model.dart';
@@ -29,6 +31,12 @@ abstract class MapLibreMapState extends State<MapLibreMap>
   /// Platforms whose renderer needs an explicit request override this.
   @override
   void triggerRepaint() {}
+
+  /// Platforms able to capture their native map view override this.
+  @override
+  Future<Uint8List?> takeSnapshot() async => throw UnimplementedError(
+    'takeSnapshot is not supported on this platform.',
+  );
 
   @override
   Widget build(BuildContext context) {

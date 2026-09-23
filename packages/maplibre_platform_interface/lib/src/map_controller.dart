@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 import 'package:maplibre_platform_interface/src/widget/inherited_model.dart';
@@ -198,6 +200,19 @@ abstract interface class MapController {
   ///
   /// Implementations that redraw on their own do nothing here.
   void triggerRepaint();
+
+  /// Capture the map as currently displayed, encoded as a PNG image.
+  ///
+  /// The image covers the native map view only: widgets drawn by Flutter on
+  /// top of the map, such as [MapLibreMap.children], are not part of it.
+  /// Its size in pixels is the size of the map view multiplied by the device
+  /// pixel ratio.
+  ///
+  /// Returns null if the native map is not ready yet.
+  ///
+  /// Only supported on Android and iOS, throws an [UnimplementedError] on the
+  /// web and WebView based implementations.
+  Future<Uint8List?> takeSnapshot();
 }
 
 /// The mode how the bearing should get tracked on the map.
