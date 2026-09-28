@@ -133,7 +133,7 @@ class OfflineManagerAndroid implements OfflineManager {
     _jManager.getOfflineRegion(
       regionId,
       jni.OfflineManager$GetOfflineRegionCallback.implement(
-        _GetAndDeleteOfflineRegionCallback(WeakReference(completer)),
+        _GetAndDeleteOfflineRegionCallback(completer),
       ),
     );
     return completer.future;
@@ -147,28 +147,96 @@ class OfflineManagerAndroid implements OfflineManager {
     required double maxZoom,
     required double pixelDensity,
     Map<String, Object?> metadata = const {},
-  }) => using((arena) {
-    final stream = StreamController<DownloadProgress>();
-    final jDefinition = jni.OfflineTilePyramidRegionDefinition(
-      mapStyleUrl.toJString()..releasedBy(arena),
-      bounds.toJLatLngBounds(arena: arena),
-      minZoom,
-      maxZoom,
-      pixelDensity,
-    );
+  }) {
+    // L'arène ne couvre que l'appel de création : les callbacks arrivent plus
+    // tard, quand elle est déjà libérée. Ce qui doit leur survivre est tenu par
+    // la session. Relâcher le proxy est sûr, le natif garde sa propre référence.
+    final session = _DownloadSession();
+    using((arena) {
+      final jDefinition = jni.OfflineTilePyramidRegionDefinition(
+        mapStyleUrl.toJString()..releasedBy(arena),
+        bounds.toJLatLngBounds(arena: arena),
+        minZoom,
+        maxZoom,
+        pixelDensity,
+      );
 
-    // convert the Map to a Java byte Array
-    final metadataJson = jsonEncode(metadata);
+      // convert the Map to a Java byte Array
+      final metadataJson = jsonEncode(metadata);
 
-    _jManager.createOfflineRegion(
-      jDefinition.as(jni.OfflineRegionDefinition.type)..releasedBy(arena),
-      JByteArray.of(utf8.encode(metadataJson))..releasedBy(arena),
-      jni.OfflineManager$CreateOfflineRegionCallback.implement(
-        _CreateOfflineRegionCallback(stream, arena),
-      )..releasedBy(arena),
+      _jManager.createOfflineRegion(
+        jDefinition.as(jni.OfflineRegionDefinition.type)..releasedBy(arena),
+        JByteArray.of(utf8.encode(metadataJson))..releasedBy(arena),
+        jni.OfflineManager$CreateOfflineRegionCallback.implement(
+          _CreateOfflineRegionCallback(session),
+        )..releasedBy(arena),
+      );
+    });
+    return session.stream;
+  }
+}
+
+/// Tient les objets natifs d'un téléchargement en cours : ils doivent survivre
+/// à l'appel de création et être relâchés une seule fois, à la fin.
+final class _DownloadSession {
+  _DownloadSession() {
+    _controller = StreamController<DownloadProgress>(onCancel: cancel);
+  }
+
+  late final StreamController<DownloadProgress> _controller;
+  jni.OfflineRegion? _jRegion;
+  jni.OfflineRegion$OfflineRegionObserver? _jObserver;
+  OfflineRegion? _region;
+  var _finished = false;
+
+  Stream<DownloadProgress> get stream => _controller.stream;
+
+  StreamController<DownloadProgress> get controller => _controller;
+
+  /// La région convertie, calculée une seule fois à l'attachement.
+  OfflineRegion? get region => _region;
+
+  void attach(jni.OfflineRegion jRegion) {
+    // Le flux peut avoir été annulé avant que la région ne soit créée.
+    if (_finished) {
+      jRegion.release();
+      return;
+    }
+    _jRegion = jRegion;
+    _region = jRegion.toOfflineRegion();
+    final jObserver = jni.OfflineRegion$OfflineRegionObserver.implement(
+      _OfflineRegionObserver(this),
     );
-    return stream.stream;
-  });
+    _jObserver = jObserver;
+    jRegion.observer = jObserver;
+    jRegion.downloadState = jni.OfflineRegion.STATE_ACTIVE;
+  }
+
+  void finish() {
+    if (_finished) return;
+    _release();
+    if (!_controller.isClosed) unawaited(_controller.close());
+  }
+
+  /// Appelé quand plus personne n'écoute : sans cela la région resterait active
+  /// et continuerait de télécharger. Le flux se ferme de lui-même.
+  void cancel() => _release();
+
+  void _release() {
+    if (_finished) return;
+    _finished = true;
+    if (_jRegion case final jRegion?) {
+      _jRegion = null;
+      if (!jRegion.isReleased) {
+        jRegion.downloadState = jni.OfflineRegion.STATE_INACTIVE;
+        jRegion.release();
+      }
+    }
+    if (_jObserver case final jObserver?) {
+      _jObserver = null;
+      if (!jObserver.isReleased) jObserver.release();
+    }
+  }
 }
 
 final class _MergeOfflineRegionsCallback
@@ -238,29 +306,41 @@ final class _GetOfflineRegionCallback
 
 final class _GetAndDeleteOfflineRegionCallback
     with jni.$OfflineManager$GetOfflineRegionCallback {
-  const _GetAndDeleteOfflineRegionCallback(this.weakCompleter);
+  const _GetAndDeleteOfflineRegionCallback(this.completer);
 
-  final WeakReference<Completer<void>> weakCompleter;
+  // Référence forte : un Completer dont seul le Future est attendu serait
+  // ramassé au premier GC, et le Future ne se terminerait jamais.
+  final Completer<void> completer;
 
   @override
   void onError(JString error) {
-    weakCompleter.target?.completeError(
+    if (completer.isCompleted) return;
+    completer.completeError(
       Exception(error.toDartString(releaseOriginal: true)),
     );
   }
 
   @override
   void onRegion(jni.OfflineRegion jRegion) {
-    jRegion.delete(
-      jni.OfflineRegion$OfflineRegionDeleteCallback.implement(
-        _DeleteOfflineRegionCallback(weakCompleter),
-      ),
-    );
+    try {
+      jRegion.delete(
+        jni.OfflineRegion$OfflineRegionDeleteCallback.implement(
+          _DeleteOfflineRegionCallback(completer),
+        ),
+      );
+    } on Object catch (error) {
+      // jni avale les exceptions des callbacks asynchrones : sans ce rattrapage
+      // l'appelant attendrait indéfiniment, sans trace.
+      if (!completer.isCompleted) completer.completeError(error);
+    } finally {
+      if (!jRegion.isReleased) jRegion.release();
+    }
   }
 
   @override
   void onRegionNotFound() {
-    weakCompleter.target?.completeError(Exception('Region not found'));
+    if (completer.isCompleted) return;
+    completer.completeError(Exception('Region not found'));
   }
 
   @override
@@ -275,18 +355,20 @@ final class _GetAndDeleteOfflineRegionCallback
 
 final class _DeleteOfflineRegionCallback
     with jni.$OfflineRegion$OfflineRegionDeleteCallback {
-  const _DeleteOfflineRegionCallback(this.weakCompleter);
+  const _DeleteOfflineRegionCallback(this.completer);
 
-  final WeakReference<Completer<void>> weakCompleter;
+  final Completer<void> completer;
 
   @override
   void onDelete() {
-    weakCompleter.target?.complete();
+    if (completer.isCompleted) return;
+    completer.complete();
   }
 
   @override
   void onError(JString string) {
-    weakCompleter.target?.completeError(
+    if (completer.isCompleted) return;
+    completer.completeError(
       Exception(string.toDartString(releaseOriginal: true)),
     );
   }
@@ -358,23 +440,22 @@ final class _ListOfflineRegionsCallback
 
 final class _CreateOfflineRegionCallback
     with jni.$OfflineManager$CreateOfflineRegionCallback {
-  const _CreateOfflineRegionCallback(this.stream, this.arena);
+  const _CreateOfflineRegionCallback(this.session);
 
-  final StreamController<DownloadProgress> stream;
-  final Arena arena;
+  final _DownloadSession session;
 
   @override
-  void onCreate(jni.OfflineRegion jRegion) {
-    jRegion.releasedBy(arena);
-    final jObserver = jni.OfflineRegion$OfflineRegionObserver.implement(
-      _OfflineRegionObserver(stream, WeakReference(jRegion), arena),
-    )..releasedBy(arena);
-    jRegion.observer = jObserver;
-    jRegion.downloadState = jni.OfflineRegion.STATE_ACTIVE;
+  void onCreate(jni.OfflineRegion jRegion) => session.attach(jRegion);
+
+  @override
+  void onError(JString error) {
+    if (!session.controller.isClosed) {
+      session.controller.addError(
+        Exception(error.toDartString(releaseOriginal: true)),
+      );
+    }
+    session.finish();
   }
-
-  @override
-  void onError(JString error) => stream.addError(Exception(error));
 
   @override
   bool get onCreate$async => true;
@@ -385,54 +466,67 @@ final class _CreateOfflineRegionCallback
 
 final class _OfflineRegionObserver
     with jni.$OfflineRegion$OfflineRegionObserver {
-  const _OfflineRegionObserver(this.stream, this.weakJRegion, this.arena);
+  const _OfflineRegionObserver(this.session);
 
-  final StreamController<DownloadProgress> stream;
-  final WeakReference<jni.OfflineRegion> weakJRegion;
-  final Arena arena;
+  final _DownloadSession session;
 
   @override
   void onStatusChanged(jni.OfflineRegionStatus jStatus) {
-    jStatus.releasedBy(arena);
-    final region = weakJRegion.target?.toOfflineRegion();
-    if (region == null) return;
-    if (!stream.isClosed) {
-      stream.add(
-        DownloadProgress(
-          loadedBytes: jStatus.completedResourceSize,
-          loadedTiles: jStatus.completedResourceCount,
-          totalTiles: jStatus.requiredResourceCount,
-          totalTilesEstimated: !jStatus.isRequiredResourceCountPrecise,
-          region: region,
-          downloadCompleted: jStatus.isComplete,
-        ),
-      );
-    }
-
-    // end download if status is complete
-    if (jStatus.isComplete) {
-      weakJRegion.target?.downloadState = jni.OfflineRegion.STATE_INACTIVE;
-      // This can be called multiple times, check if already completed
-      if (!stream.isClosed) {
-        stream.close();
+    try {
+      final region = session.region;
+      if (region == null) return;
+      final isComplete = jStatus.isComplete;
+      if (!session.controller.isClosed) {
+        session.controller.add(
+          DownloadProgress(
+            loadedBytes: jStatus.completedResourceSize,
+            loadedTiles: jStatus.completedResourceCount,
+            totalTiles: jStatus.requiredResourceCount,
+            totalTilesEstimated: !jStatus.isRequiredResourceCountPrecise,
+            region: region,
+            downloadCompleted: isComplete,
+          ),
+        );
       }
-      return;
+      if (isComplete) session.finish();
+    } finally {
+      if (!jStatus.isReleased) jStatus.release();
     }
   }
 
   @override
   void onError(jni.OfflineRegionError error) {
-    error.releasedBy(arena);
-    weakJRegion.target?.downloadState = jni.OfflineRegion.STATE_INACTIVE;
-    stream.addError(
-      Exception(error.message.toDartString(releaseOriginal: true)),
-    );
+    try {
+      // Le SDK natif ne retire pas la requête en échec et la retente : une
+      // ressource lente ou un serveur momentanément indisponible remonte ici
+      // sans que le téléchargement soit perdu. Seul REASON_OTHER n'est jamais
+      // retenté, c'est le seul cas où arrêter la région a un sens.
+      final reason = error.reason.toDartString(releaseOriginal: true);
+      final isFatal =
+          reason ==
+          jni.OfflineRegionError.REASON_OTHER.toDartString(
+            releaseOriginal: true,
+          );
+      if (!isFatal) return;
+      if (!session.controller.isClosed) {
+        session.controller.addError(
+          Exception(error.message.toDartString(releaseOriginal: true)),
+        );
+      }
+      session.finish();
+    } finally {
+      if (!error.isReleased) error.release();
+    }
   }
 
   @override
   void mapboxTileCountLimitExceeded(int limit) {
-    weakJRegion.target?.downloadState = jni.OfflineRegion.STATE_INACTIVE;
-    stream.addError(Exception('Tile count limit exceeded: $limit'));
+    if (!session.controller.isClosed) {
+      session.controller.addError(
+        Exception('Tile count limit exceeded: $limit'),
+      );
+    }
+    session.finish();
   }
 
   @override
