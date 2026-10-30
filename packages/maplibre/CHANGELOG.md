@@ -5,6 +5,8 @@
 - Added `MapController.easeCamera()`, a camera move at a constant speed,
   straight to its destination, between the jump of `moveCamera()` and the arc
   of `animateCamera()`.
+- Added `MapController.takeSnapshot()`, which captures the map as it is shown
+  as a PNG image, without the widgets over it. Not supported on the web.
 
 ### Breaking Changes
 

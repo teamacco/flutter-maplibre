@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 import 'package:maplibre_platform_interface/src/widget/inherited_model.dart';
@@ -97,10 +101,37 @@ abstract class MapLibreMapState extends State<MapLibreMap>
   /// the platform handles gestures itself.
   GestureCameraSink? get gestureCamera => null;
 
+  /// The boundary around [buildPlatformWidget] that [takeSnapshot] draws.
+  final GlobalKey _snapshotBoundary = GlobalKey();
+
+  /// Draws the map's own layer, texture included, into an image. A platform
+  /// that Flutter cannot draw this way, such as the web, overrides this.
+  @override
+  Future<Uint8List?> takeSnapshot({double? pixelRatio}) async {
+    final boundary =
+        _snapshotBoundary.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+    if (boundary == null || !boundary.hasSize) return null;
+    final image = await boundary.toImage(
+      pixelRatio: pixelRatio ?? MediaQuery.devicePixelRatioOf(context),
+    );
+    try {
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      return data?.buffer.asUint8List();
+    } finally {
+      image.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final gestureCamera = this.gestureCamera;
-    final platformWidget = buildPlatformWidget(context);
+    // The boundary gives the map a layer of its own, which takeSnapshot
+    // draws without the widgets over the map.
+    final platformWidget = RepaintBoundary(
+      key: _snapshotBoundary,
+      child: buildPlatformWidget(context),
+    );
     return Stack(
       children: [
         if (gestureCamera == null)

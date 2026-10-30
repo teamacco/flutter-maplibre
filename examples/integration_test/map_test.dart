@@ -281,6 +281,31 @@ void runTests() {
       expect(left.getCamera().zoom, closeTo(6, 1e-6));
       expect(right.getCamera().zoom, closeTo(4, 1e-6));
     });
+
+    testWidgets('captures the map it shows', (tester) async {
+      final map = await pumpMap(tester);
+      await map.waitForLatestFrame();
+      // The widget over the map must not reach the capture.
+      final png = await map.controller.takeSnapshot(pixelRatio: 1);
+      expect(png, isNotNull);
+
+      final image = await decodeImageFromList(png!);
+      addTearDown(image.dispose);
+      expect(image.width, map.size.width.round());
+      expect(image.height, map.size.height.round());
+
+      final pixels = await image.toByteData();
+      final middle = ((image.height ~/ 2) * image.width + image.width ~/ 2) * 4;
+      final rgba = pixels!.buffer.asUint8List(middle, 4);
+      // The background of the test style, which only the map draws.
+      expect(rgba.sublist(0, 3), [0xdd, 0xdd, 0xdd]);
+      expect(rgba[3], 0xff);
+    }, skip: kIsWeb);
+
+    testWidgets('does not capture the map on the web', (tester) async {
+      final map = await pumpMap(tester);
+      await expectLater(map.controller.takeSnapshot(), throwsUnsupportedError);
+    }, skip: !kIsWeb);
   });
 }
 

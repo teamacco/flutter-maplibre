@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 import 'package:maplibre_platform_interface/src/widget/inherited_model.dart';
@@ -149,4 +151,23 @@ abstract interface class MapController {
     Rect rect, {
     List<String>? layerIds,
   });
+
+  /// Captures the map as it is shown, encoded as a PNG image.
+  ///
+  /// The image covers the map itself. The widgets of
+  /// [MapLibreMap.children] are drawn over it and are not part of it. It is
+  /// the size of the map in logical pixels multiplied by [pixelRatio], which
+  /// defaults to the device pixel ratio, so the capture has the resolution
+  /// of the screen.
+  ///
+  /// Use it where a capture of the Flutter tree would not show the map, such
+  /// as a bug report that captures the screen: the map draws in a texture of
+  /// its own, which such a capture leaves out.
+  ///
+  /// Returns null before the map has drawn its first frame.
+  ///
+  /// The web shows the map in an HTML element rather than in a texture, and
+  /// MapLibre GL JS clears its drawing buffer after each frame, so this
+  /// throws an [UnsupportedError] there.
+  Future<Uint8List?> takeSnapshot({double? pixelRatio});
 }

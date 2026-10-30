@@ -211,6 +211,16 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
     super.initState();
   }
 
+  /// MapLibre GL JS draws the map in an HTML canvas that Flutter composes
+  /// rather than paints, and it clears the canvas' drawing buffer after each
+  /// frame, so there is nothing to read back.
+  @override
+  Future<Uint8List?> takeSnapshot({double? pixelRatio}) =>
+      throw UnsupportedError(
+        'takeSnapshot is not supported on the web: the map draws in an HTML '
+        'canvas whose drawing buffer MapLibre GL JS clears after each frame.',
+      );
+
   @override
   Widget buildPlatformWidget(BuildContext context) => Listener(
     behavior: HitTestBehavior.opaque,
