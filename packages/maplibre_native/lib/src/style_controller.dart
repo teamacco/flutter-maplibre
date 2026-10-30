@@ -10,6 +10,13 @@ import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 ///
 /// Sources and layers reach the map as style JSON, the form the C API takes
 /// them in.
+///
+/// Every method stops once the controller is disposed. A style reload
+/// disposes the controller of the style it replaces, but callers may still
+/// hold it, for instance an operation suspended on an await. The map handle
+/// outlives the style, so a call from a stale controller would not fail: it
+/// would reach the style that replaced it and put back a source, layer or
+/// image the reload dropped.
 class StyleControllerNative extends StyleController {
   /// Creates a style controller for a map.
   StyleControllerNative(
@@ -42,6 +49,7 @@ class StyleControllerNative extends StyleController {
 
   @override
   Future<void> addSource(Source source) async {
+    if (_disposed) return;
     final json = <String, Object?>{
       ...switch (source) {
         GeoJsonSource() => {
@@ -141,6 +149,7 @@ class StyleControllerNative extends StyleController {
     String? aboveLayerId,
     int? atIndex,
   }) async {
+    if (_disposed) return;
     final json = <String, Object?>{
       'id': layer.id,
       'type': switch (layer) {
@@ -194,6 +203,7 @@ class StyleControllerNative extends StyleController {
     required String id,
     required String data,
   }) async {
+    if (_disposed) return;
     final trimmed = data.trim();
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
       await _map.setGeoJsonSourceUrl(id, trimmed);
@@ -212,12 +222,14 @@ class StyleControllerNative extends StyleController {
 
   @override
   Future<void> removeLayer(String id) async {
+    if (_disposed) return;
     await _checkUnlessMissing(_map.removeStyleLayer(id));
     await _fetchLayerIds();
   }
 
   @override
   Future<void> removeSource(String id) async {
+    if (_disposed) return;
     await _checkUnlessMissing(_map.removeStyleSource(id));
     _sourceAttributions.remove(id);
     _geoJsonOptions.remove(id);
@@ -226,6 +238,7 @@ class StyleControllerNative extends StyleController {
 
   @override
   Future<LineStyleLayerController?> getLineLayer(String id) async {
+    if (_disposed) return null;
     final info = await _map.getStyleLayer(id);
     if (info?.type != 'line') return null;
     final paint = <String, Object?>{};
@@ -248,6 +261,7 @@ class StyleControllerNative extends StyleController {
     Uint8List bytes, {
     double pixelRatio = 1,
   }) async {
+    if (_disposed) return;
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
     codec.dispose();
@@ -268,6 +282,7 @@ class StyleControllerNative extends StyleController {
     required ui.Image image,
     double pixelRatio = 1,
   }) async {
+    if (_disposed) return;
     // rawRgba is premultiplied RGBA8, the form the C API takes.
     final data = await image.toByteData();
     if (data == null) {
@@ -287,6 +302,7 @@ class StyleControllerNative extends StyleController {
 
   @override
   Future<void> removeImage(String id) async {
+    if (_disposed) return;
     await _checkUnlessMissing(_map.removeStyleImage(id));
   }
 
@@ -342,6 +358,8 @@ class StyleControllerNative extends StyleController {
 
   static var _warnedGlobe = false;
 
+  /// Stops every later call of this controller, which the style it
+  /// describes no longer backs.
   @override
   void dispose() => _disposed = true;
 

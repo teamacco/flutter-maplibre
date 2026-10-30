@@ -433,5 +433,36 @@ void runTests() {
       );
       expect(map.style.getLayerIds(), ['background']);
     }, skip: kIsWeb);
+
+    testWidgets('ignores the controller of a style that reloaded', (
+      tester,
+    ) async {
+      final map = await pumpMap(tester);
+      final stale = map.style;
+      await map.setOptions(
+        const MapOptions(
+          style: MapStyle.asset('assets/styles/test_style.json'),
+          initCamera: InitialCamera.position(zoom: 4),
+        ),
+      );
+      await map.pumpUntil(
+        () => map.style != stale,
+        reason: () => 'waiting for the style to reload',
+      );
+
+      // The map outlives the style, so these would otherwise reach the style
+      // that replaced it.
+      await stale.addSource(GeoJsonSource(id: 'stale', data: _pointData()));
+      await stale.addLayer(
+        const CircleStyleLayer(id: 'stale', sourceId: 'stale'),
+      );
+      await stale.removeLayer('points');
+
+      // Adding a layer refreshes the ids the new controller reports.
+      await map.style.addLayer(
+        const BackgroundStyleLayer(id: 'probe', color: Colors.black),
+      );
+      expect(map.style.getLayerIds(), ['background', 'points', 'probe']);
+    });
   });
 }

@@ -1,11 +1,20 @@
 part of 'map_state.dart';
 
 /// Web specific implementation of the [StyleController].
+///
+/// Every method stops once the controller is disposed. A style reload
+/// disposes the controller of the style it replaces, but callers may still
+/// hold it, for instance an operation suspended on an await. The JS map
+/// outlives the style, so a call from a stale controller would not fail: it
+/// would reach the style that replaced it and put back a source, layer or
+/// image the reload dropped.
 class StyleControllerWeb extends StyleController {
   /// Create a new [StyleControllerWeb] instance.
-  const StyleControllerWeb(this._map);
+  StyleControllerWeb(this._map);
 
   final interop.JsMap _map;
+
+  var _disposed = false;
 
   @override
   Future<void> addImage(
@@ -13,6 +22,7 @@ class StyleControllerWeb extends StyleController {
     Uint8List bytes, {
     double pixelRatio = 1,
   }) async {
+    if (_disposed) return;
     // The browser decodes the image: Flutter's skwasm renderer gives decoded
     // images the size of the view.
     final blob = Blob([bytes.toJS].toJS);
@@ -30,6 +40,7 @@ class StyleControllerWeb extends StyleController {
     required ui.Image image,
     double pixelRatio = 1,
   }) async {
+    if (_disposed) return;
     // Raw pixels, as Flutter's skwasm renderer encodes some images to PNG at
     // the size of the view.
     final data = await image.toByteData(
@@ -50,19 +61,27 @@ class StyleControllerWeb extends StyleController {
   }
 
   @override
-  Future<void> removeImage(String id) async => _map.removeImage(id);
+  Future<void> removeImage(String id) async {
+    if (_disposed) return;
+    _map.removeImage(id);
+  }
 
   @override
-  Future<void> removeLayer(String id) async => _map.removeLayer(id);
+  Future<void> removeLayer(String id) async {
+    if (_disposed) return;
+    _map.removeLayer(id);
+  }
 
   @override
   Future<void> removeSource(String id) async {
+    if (_disposed) return;
     // Removing a source the style lacks is not an error on other platforms.
     if (_map.getSource(id) != null) _map.removeSource(id);
   }
 
   @override
   Future<LineStyleLayerController?> getLineLayer(String id) async {
+    if (_disposed) return null;
     final layer = _map.getLayer(id);
     if (layer == null) return null;
     if ((layer['type'] as JSString?)?.toDart != 'line') return null;
@@ -82,6 +101,7 @@ class StyleControllerWeb extends StyleController {
     required String id,
     required String data,
   }) async {
+    if (_disposed) return;
     final source = _map.getSource(id);
     if (source == null) throw Exception('Source with id "$id" does not exist.');
     source.setData(parse(data));
@@ -123,6 +143,7 @@ class StyleControllerWeb extends StyleController {
     String? aboveLayerId,
     int? atIndex,
   }) async {
+    if (_disposed) return;
     if (_map.getLayer(layer.id) != null) {
       throw Exception(
         'A Layer with the id "${layer.id}" already exists in the map style.',
@@ -239,6 +260,7 @@ class StyleControllerWeb extends StyleController {
 
   @override
   Future<void> addSource(Source source) async {
+    if (_disposed) return;
     if (_map.getSource(source.id) != null) {
       throw Exception(
         'A Source with the id "${source.id}" already exists in the map style.',
@@ -348,8 +370,10 @@ class StyleControllerWeb extends StyleController {
     }
   }
 
+  /// Stops every later call of this controller, which the style it
+  /// describes no longer backs.
   @override
-  void dispose() {}
+  void dispose() => _disposed = true;
 
   @override
   void setProjection(MapProjection projection) => _map.setProjection(

@@ -141,6 +141,9 @@
 - Web: wheel, pinch and double-tap zoom on the globe zoom toward the pointer.
 - Web: `animateCamera` no longer hangs when the animation ends at once, and
   removing a source that does not exist is not an error.
+- A `StyleController` of a style that has reloaded no longer writes to the
+  style that replaced it. Its calls now do nothing, so a source, layer or
+  image the reload dropped does not come back.
 
 Full Changelog: [v0.3.7+1...v0.4.0](https://github.com/josxha/flutter-maplibre/compare/v0.3.7+1...v0.4.0)
 
