@@ -331,6 +331,32 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
   }
 
   @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) async {
+    _nextGestureCausedByController = true;
+    final camera = getCamera();
+    final completer = _movementCompleter = Completer<interop.MapLibreEvent>();
+    _map.easeTo(
+      interop.EaseToOptions(
+        center: center?.toLngLat(),
+        zoom: zoom ?? camera.zoom,
+        bearing: bearing ?? camera.bearing,
+        pitch: pitch ?? camera.pitch,
+        duration: duration.inMilliseconds,
+        padding: padding.toPaddingOptions(),
+      ),
+    );
+    final _ = await completer.future;
+    _movementCompleter = null;
+  }
+
+  @override
   Future<void> animateCamera({
     Geographic? center,
     double? zoom,

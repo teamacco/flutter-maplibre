@@ -41,6 +41,26 @@ abstract class MapLibreMapState extends State<MapLibreMap>
   @protected
   bool get canPauseRendering => true;
 
+  /// Falls back to [animateCamera], so an implementation that does not
+  /// override it still moves the camera. Declaring it abstract here would
+  /// break every third party implementer of [MapController].
+  @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) => animateCamera(
+    center: center,
+    zoom: zoom,
+    bearing: bearing,
+    pitch: pitch,
+    nativeDuration: duration,
+    padding: padding,
+  );
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();

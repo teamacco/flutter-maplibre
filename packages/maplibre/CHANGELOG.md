@@ -1,5 +1,11 @@
 ## unreleased
 
+### Features
+
+- Added `MapController.easeCamera()`, a camera move at a constant speed,
+  straight to its destination, between the jump of `moveCamera()` and the arc
+  of `animateCamera()`.
+
 ### Breaking Changes
 
 - Removed `maplibre_android`, `maplibre_ios` and `maplibre_webview`. `maplibre`

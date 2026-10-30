@@ -62,6 +62,19 @@ abstract interface class MapController {
     EdgeInsets padding = EdgeInsets.zero,
   });
 
+  /// Move the map camera to a new location at a constant speed.
+  ///
+  /// Unlike [animateCamera], which flies along an arc and adjusts the zoom
+  /// level on the way, the camera moves straight to its destination.
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  });
+
   /// Animate the map camera to a new location.
   Future<void> fitBounds({
     required GeoBox bounds,

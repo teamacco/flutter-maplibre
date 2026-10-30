@@ -56,6 +56,7 @@ extension type EaseToOptions._(CameraOptions _) implements CameraOptions {
     num? duration,
     JSFunction? easing,
     bool? essential,
+    PaddingOptions? padding,
   });
 }
 

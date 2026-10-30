@@ -492,6 +492,24 @@ class MapLibreMapStateNative extends MapLibreMapState {
   );
 
   @override
+  Future<void> easeCamera({
+    Geographic? center,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    Duration duration = const Duration(seconds: 2),
+    EdgeInsets padding = EdgeInsets.zero,
+  }) => _updateCamera(
+    mln.CameraUpdateMode.ease,
+    center: center,
+    zoom: zoom,
+    bearing: bearing,
+    pitch: pitch,
+    padding: padding,
+    duration: duration,
+  );
+
+  @override
   Future<void> animateCamera({
     Geographic? center,
     double? zoom,
