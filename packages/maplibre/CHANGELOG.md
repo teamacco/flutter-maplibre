@@ -146,6 +146,9 @@
 - A `StyleController` of a style that has reloaded no longer writes to the
   style that replaced it. Its calls now do nothing, so a source, layer or
   image the reload dropped does not come back.
+- Android: the JNI library aligns its LOAD segments to 16 KB, so an app that
+  bundles it passes the page size requirement of Android 15 and of Google
+  Play. It was linked at 4 KB.
 
 Full Changelog: [v0.3.7+1...v0.4.0](https://github.com/josxha/flutter-maplibre/compare/v0.3.7+1...v0.4.0)
 
