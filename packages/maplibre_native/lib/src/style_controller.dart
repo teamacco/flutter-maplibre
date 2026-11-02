@@ -182,6 +182,8 @@ class StyleControllerNative extends StyleController {
     var beforeLayerId = belowLayerId;
     if (beforeLayerId == null && (aboveLayerId != null || atIndex != null)) {
       final ids = await _fetchLayerIds();
+      // A reload can replace the style while the layer ids are read.
+      if (_disposed) return;
       if (aboveLayerId != null) {
         final index = ids.indexOf(aboveLayerId);
         if (index < 0) {
@@ -285,6 +287,8 @@ class StyleControllerNative extends StyleController {
     if (_disposed) return;
     // rawRgba is premultiplied RGBA8, the form the C API takes.
     final data = await image.toByteData();
+    // A reload can replace the style while the pixels are read.
+    if (_disposed) return;
     if (data == null) {
       throw StateError('Failed to read the pixels of the image "$id".');
     }
