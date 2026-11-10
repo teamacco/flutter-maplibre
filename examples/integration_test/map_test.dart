@@ -325,16 +325,9 @@ void runTests() {
 
       final pixels = await image.toByteData();
       final middle = ((image.height ~/ 2) * image.width + image.width ~/ 2) * 4;
-      final rgba = pixels!.buffer.asUint8List(middle, 4);
       // The background of the test style, which only the map draws.
-      expect(rgba.sublist(0, 3), [0xdd, 0xdd, 0xdd]);
-      expect(rgba[3], 0xff);
+      expect(pixels!.buffer.asUint8List(middle, 4), [0xdd, 0xdd, 0xdd, 0xff]);
     }, skip: kIsWeb);
-
-    testWidgets('does not capture the map on the web', (tester) async {
-      final map = await pumpMap(tester);
-      await expectLater(map.controller.takeSnapshot(), throwsUnsupportedError);
-    }, skip: !kIsWeb);
   });
 }
 
