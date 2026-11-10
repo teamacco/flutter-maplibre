@@ -303,11 +303,10 @@ class StyleControllerNative extends StyleController implements StyleBackend {
     double pixelRatio = 1,
     StyleImageOptions options = const StyleImageOptions(),
   }) async {
-    await _map.setStyleImage(
-      id,
-      await _premultipliedImage(image, id),
-      options: options.toMln(pixelRatio),
-    );
+    final pixels = await _premultipliedImage(image, id);
+    // A reload can replace the style while the pixels are read.
+    if (_disposed) return;
+    await _map.setStyleImage(id, pixels, options: options.toMln(pixelRatio));
   }
 
   @override

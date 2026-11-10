@@ -17,6 +17,8 @@
 - Widgets around `MapLibreMap`, such as a `Listener`, get the map's pointer
   events again, and widgets behind the map no longer get its taps
   ([#675](https://github.com/josxha/flutter-maplibre/issues/675)).
+- Native: an image added from a `ui.Image` no longer reaches the style that a
+  reload put in place of the one it was meant for.
 
 Full Changelog: [v0.4.0-pre.2...main](https://github.com/josxha/flutter-maplibre/compare/v0.4.0-pre.2...main)
 
