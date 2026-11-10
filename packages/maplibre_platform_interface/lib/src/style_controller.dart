@@ -263,7 +263,13 @@ abstract class StyleController {
   /// https://maplibre.org/maplibre-style-spec/projection/
   void setProjection(Expression<MapProjection> projection);
 
-  /// Clean up resources.
+  /// Detaches the controller from the style it belongs to, and cleans up
+  /// resources.
+  ///
+  /// A style reload disposes the controller of the style it replaces, while
+  /// callers may still hold it, for instance an operation suspended on an
+  /// await. Every method stops once the controller is disposed, so an
+  /// implementation rechecks after each await before it reaches the map.
   void dispose();
 }
 

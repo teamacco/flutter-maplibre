@@ -55,6 +55,8 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
   /// removed.
   final _blobUrls = <String, String>{};
 
+  var _disposed = false;
+
   @override
   Future<void> addImage(
     String id,
@@ -66,6 +68,12 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
     // images the size of the view.
     final blob = Blob([bytes.toJS].toJS);
     final bitmap = await window.createImageBitmap(blob).toDart;
+    // A reload can replace the style while the browser decodes the image.
+    // The bitmap holds decoded pixels, so it is released rather than dropped.
+    if (_disposed) {
+      bitmap.close();
+      return;
+    }
     _map.addImage(id, bitmap, options.toJs(pixelRatio));
   }
 
@@ -84,6 +92,8 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
     if (data == null) {
       throw StateError('Failed to read the pixels of the image "$id".');
     }
+    // A reload can replace the style while the pixels are read.
+    if (_disposed) return;
     _map.addImage(
       id,
       interop.ImageSpecification(
@@ -328,6 +338,7 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
 
   @override
   void dispose() {
+    _disposed = true;
     layers.dispose();
     sources.dispose();
     // Interop members can't be torn off for forEach.
