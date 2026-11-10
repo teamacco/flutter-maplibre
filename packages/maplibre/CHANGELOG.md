@@ -30,6 +30,8 @@
   ([#611](https://github.com/maplibre/flutter-maplibre/issues/611)).
 - A pinch rotates the map only after its fingers twist 15 degrees, set with
   `MapGestures.rotateThreshold`.
+- `MapController.takeSnapshot()` captures the map as it is shown, encoded as
+  a PNG image, without the widgets drawn over it. Not supported on the web.
 
 ### Bug Fixes
 
