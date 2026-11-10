@@ -92,16 +92,14 @@ abstract class MapLibreMapState extends State<MapLibreMap>
   /// that Flutter cannot draw this way, such as the web, overrides this.
   @override
   Future<Uint8List?> takeSnapshot({double? pixelRatio}) async {
-    final boundary =
-        _snapshotBoundary.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
-    if (boundary == null || !boundary.hasSize) return null;
+    final boundary = _snapshotBoundary.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.hasSize) return null;
     final image = await boundary.toImage(
       pixelRatio: pixelRatio ?? MediaQuery.devicePixelRatioOf(context),
     );
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      return data?.buffer.asUint8List();
+      return data == null ? null : Uint8List.sublistView(data);
     } finally {
       image.dispose();
     }
