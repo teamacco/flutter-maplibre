@@ -106,7 +106,12 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
   }
 
   @override
-  Future<void> removeImage(String id) async => _map.removeImage(id);
+  Future<void> removeImage(String id) async {
+    // The image of a style that went away: the id may be taken on the style
+    // that replaced it.
+    if (_disposed) return;
+    _map.removeImage(id);
+  }
 
   @override
   Future<void> addLayer(
@@ -177,6 +182,8 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
 
   @override
   List<String> get attributions {
+    // The map now shows the style that replaced this one.
+    if (_disposed) return const [];
     final sources =
         _map.getStyle()?.sources.dartify() as Map<Object?, Object?>?;
     if (sources == null) return const [];
@@ -377,10 +384,12 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
   }
 
   @override
-  void setProjection(Expression<MapProjection> projection) =>
-      _map.setProjection(
-        interop.ProjectionSpecification(type: projection.toJson().jsify()!),
-      );
+  void setProjection(Expression<MapProjection> projection) {
+    if (_disposed) return;
+    _map.setProjection(
+      interop.ProjectionSpecification(type: projection.toJson().jsify()!),
+    );
+  }
 }
 
 /// A transparent PNG of one pixel, the image of an image source until its

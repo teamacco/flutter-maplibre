@@ -311,6 +311,9 @@ class StyleControllerNative extends StyleController implements StyleBackend {
 
   @override
   Future<void> removeImage(String id) async {
+    // The image of a style that went away: the id may be taken on the style
+    // that replaced it.
+    if (_disposed) return;
     await _checkUnlessMissing(_map.removeStyleImage(id));
   }
 

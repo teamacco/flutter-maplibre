@@ -7,6 +7,9 @@ part of 'source.dart';
 /// update replaces the object in this collection. Changes apply to the
 /// collection at once and reach the map in the order they were made.
 ///
+/// Loading a new style empties the collection and detaches it, after which a
+/// change to it only reaches the object it is made on, never the map.
+///
 /// {@category Style}
 /// {@subCategory Style Sources}
 final class StyleSources extends Iterable<Source> {
@@ -23,6 +26,9 @@ final class StyleSources extends Iterable<Source> {
   /// The source JSON of the sources as they were specified, without what a
   /// TileJSON resource added: an update must not carry that over.
   final _specifications = <String, Map<String, Object?>>{};
+
+  var _disposed = false;
+  var _warnedDisposed = false;
 
   @override
   Iterator<Source> get iterator => _sources.values.iterator;
@@ -41,6 +47,7 @@ final class StyleSources extends Iterable<Source> {
   ///
   /// Fails with an [ArgumentError] if its id is taken.
   Future<void> add(Source source) async {
+    if (_detachedOrWarn()) return;
     if (_sources.containsKey(source.id)) {
       throw ArgumentError.value(
         source.id,
@@ -84,18 +91,21 @@ final class StyleSources extends Iterable<Source> {
 
   /// Replaces the data of the GeoJSON source [id] with [data].
   Future<void> updateGeoJsonData(String id, GeoJsonData data) async {
+    if (_detachedOrWarn()) return;
     _sources[id] = _sourceOfType<GeoJsonSource>(id)._withData(data);
     await _backend.setGeoJsonData(id, data);
   }
 
   /// Makes the GeoJSON source [id] load its data from [url].
   Future<void> updateGeoJsonUrl(String id, String url) async {
+    if (_detachedOrWarn()) return;
     _sources[id] = _sourceOfType<GeoJsonSource>(id)._withUrl(url);
     await _backend.setGeoJsonUrl(id, url);
   }
 
   /// Moves the corners of the image source [id] to [coordinates].
   Future<void> updateImageCoordinates(String id, LngLatQuad coordinates) async {
+    if (_detachedOrWarn()) return;
     final source = _sourceOfType<ImageSource>(id);
     _sources[id] = switch (source) {
       ImageSourceUrl(:final url) => ImageSourceUrl(
@@ -123,6 +133,7 @@ final class StyleSources extends Iterable<Source> {
   /// the layers of the source are removed and added again, which [StyleLayer]
   /// objects don't notice.
   Future<void> updateTiles(String id, List<String> tiles) async {
+    if (_detachedOrWarn()) return;
     final specification = {..._tileSpecification(id), 'tiles': tiles}
       ..remove('url');
     _replaceTileSource(id, specification);
@@ -136,6 +147,7 @@ final class StyleSources extends Iterable<Source> {
   /// layers of the source are removed and added again, which [StyleLayer]
   /// objects don't notice.
   Future<void> updateTileJsonUrl(String id, String url) async {
+    if (_detachedOrWarn()) return;
     final specification = {..._tileSpecification(id), 'url': url}
       ..remove('tiles');
     _replaceTileSource(id, specification);
@@ -178,10 +190,28 @@ final class StyleSources extends Iterable<Source> {
     return true;
   }
 
-  /// Forgets every source, when the style goes away. Platforms call it.
+  /// Forgets every source and detaches the collection, when the style goes
+  /// away. Platforms call it.
   void dispose() {
+    _disposed = true;
     _sources.clear();
     _specifications.clear();
+  }
+
+  /// Whether the style of this collection went away. A change to a collection
+  /// whose style was replaced would reach the style that replaced it, which is
+  /// likely a mistake, so debug builds warn once.
+  bool _detachedOrWarn() {
+    if (_disposed && !_warnedDisposed) {
+      _warnedDisposed = true;
+      if (kDebugMode) {
+        debugPrint(
+          'maplibre: the style was replaced, so changing its sources no '
+          'longer updates the map.',
+        );
+      }
+    }
+    return _disposed;
   }
 
   T _sourceOfType<T extends Source>(String id) {

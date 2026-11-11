@@ -6,6 +6,10 @@ part of 'style_layer.dart';
 /// and follows every change made through it. Changes apply to the collection
 /// at once and reach the map in the order they were made.
 ///
+/// Loading a new style empties the collection and detaches it along with its
+/// layer objects, after which a change to it only reaches the object it is
+/// made on, never the map.
+///
 /// {@category Style}
 /// {@subCategory Style Layers}
 final class StyleLayers extends Iterable<StyleLayer> {
@@ -17,6 +21,9 @@ final class StyleLayers extends Iterable<StyleLayer> {
   final StyleSources _sources;
   final _layers = <StyleLayer>[];
   final ValueNotifier<int> _callbacks = ValueNotifier(0);
+
+  var _disposed = false;
+  var _warnedDisposed = false;
 
   /// Notifies its listeners when a layer of the collection gets its first
   /// [StyleLayer.onClick], [StyleLayer.onEnter] or [StyleLayer.onLeave] or
@@ -50,6 +57,7 @@ final class StyleLayers extends Iterable<StyleLayer> {
   /// missing or [belowLayerId] is not a layer of this style, and with a
   /// [StateError] if [layer] already is on a map.
   Future<void> add(StyleLayer layer, {String? belowLayerId}) async {
+    if (_detachedOrWarn()) return;
     if (layer._owner != null) {
       throw StateError('The layer "${layer.id}" is already on a map.');
     }
@@ -103,6 +111,7 @@ final class StyleLayers extends Iterable<StyleLayer> {
   /// is null. Fails with an [ArgumentError] if either isn't a layer of this
   /// style.
   void move(String id, {String? belowLayerId}) {
+    if (_detachedOrWarn()) return;
     final index = _indexOf(id);
     if (index == -1) {
       throw ArgumentError.value(id, 'id', 'The style has no such layer');
@@ -133,12 +142,30 @@ final class StyleLayers extends Iterable<StyleLayer> {
     }
   }
 
-  /// Detaches every layer object, when the style goes away. Platforms call it.
+  /// Detaches every layer object and the collection itself, when the style
+  /// goes away. Platforms call it.
   void dispose() {
+    _disposed = true;
     final hadCallbacks = _layers.any((layer) => layer._hasCallbacks);
     _layers.forEach(_detach);
     _layers.clear();
     if (hadCallbacks) _callbacksChanged();
+  }
+
+  /// Whether the style of this collection went away. A change to a collection
+  /// whose style was replaced would reach the style that replaced it, which is
+  /// likely a mistake, so debug builds warn once.
+  bool _detachedOrWarn() {
+    if (_disposed && !_warnedDisposed) {
+      _warnedDisposed = true;
+      if (kDebugMode) {
+        debugPrint(
+          'maplibre: the style was replaced, so changing its layers no '
+          'longer updates the map.',
+        );
+      }
+    }
+    return _disposed;
   }
 
   int _indexOf(String id) => _layers.indexWhere((layer) => layer.id == id);

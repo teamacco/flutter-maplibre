@@ -238,6 +238,17 @@ void main() {
       expect(backend.calls, isEmpty);
     });
 
+    test('a change after the style was replaced reaches no map', () async {
+      layers.dispose();
+      backend.calls.clear();
+      // The style that replaced this one must not get these.
+      await layers.add(FillStyleLayer(id: 'a', sourceId: 'src'));
+      await layers.remove('top');
+      layers.move('top', belowLayerId: 'bottom');
+      expect(layers, isEmpty);
+      expect(backend.calls, isEmpty);
+    });
+
     test('a layer not on a map sends nothing', () {
       LineStyleLayer(id: 'x', sourceId: 'src').width = const .literal(2);
       expect(backend.calls, isEmpty);
@@ -469,6 +480,27 @@ void main() {
       await sources.add(const GeoJsonSource.url(id: 'a', url: 'https://a'));
       sources.dispose();
       expect(sources, isEmpty);
+    });
+
+    test('a change after the style was replaced reaches no map', () async {
+      await sources.add(const VectorSource.url(id: 'v', url: 'https://a'));
+      await sources.add(const GeoJsonSource.url(id: 'g', url: 'https://g'));
+      await sources.add(
+        const ImageSource.url(id: 'i', url: 'https://i', coordinates: quad),
+      );
+      sources.dispose();
+      backend.calls.clear();
+      // The style that replaced this one must not get these, and an update of
+      // a source the collection forgot is not an error either.
+      await sources.add(const GeoJsonSource.url(id: 'b', url: 'https://b'));
+      await sources.remove('v');
+      await sources.updateGeoJsonData('g', const GeoJsonData.text('{}'));
+      await sources.updateGeoJsonUrl('g', 'https://d');
+      await sources.updateImageCoordinates('i', quad);
+      await sources.updateTiles('v', const ['https://t']);
+      await sources.updateTileJsonUrl('v', 'https://b');
+      expect(sources, isEmpty);
+      expect(backend.calls, isEmpty);
     });
   });
 

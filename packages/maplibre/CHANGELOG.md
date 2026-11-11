@@ -19,6 +19,11 @@
   ([#675](https://github.com/josxha/flutter-maplibre/issues/675)).
 - An image added from bytes or from a `ui.Image` no longer reaches the style
   that a reload put in place of the one it was meant for.
+- A change made through the `StyleController` of a style that a reload
+  replaced no longer reaches the style that replaced it. Its `layers` and
+  `sources` take no change, `removeImage` and `setProjection` do nothing, and
+  updating a source the collection forgot is no longer an `ArgumentError`.
+  Debug builds warn once per collection.
 
 Full Changelog: [v0.4.0-pre.2...main](https://github.com/josxha/flutter-maplibre/compare/v0.4.0-pre.2...main)
 

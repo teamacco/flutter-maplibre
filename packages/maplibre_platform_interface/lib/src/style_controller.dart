@@ -268,8 +268,13 @@ abstract class StyleController {
   ///
   /// A style reload disposes the controller of the style it replaces, while
   /// callers may still hold it, for instance an operation suspended on an
-  /// await. Every method stops once the controller is disposed, so an
-  /// implementation rechecks after each await before it reaches the map.
+  /// await. The controller is detached from then on: [layers], [sources] and
+  /// [attributions] are empty, and a call that would change the map does
+  /// nothing, so that a change meant for the old style never reaches the one
+  /// that replaced it. Debug builds warn once per collection.
+  ///
+  /// The style can be replaced while a call waits, so an implementation
+  /// checks again after each await, before it reaches the map.
   void dispose();
 }
 
