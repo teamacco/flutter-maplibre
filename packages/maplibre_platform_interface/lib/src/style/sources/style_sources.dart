@@ -228,7 +228,9 @@ final class StyleSources extends Iterable<Source> {
   void markReplaced() => _replaced = true;
 
   /// Forgets every source, when the style goes away. Platforms call it after
-  /// [markReplaced].
+  /// [markReplaced]. It empties the collection but does not stop
+  /// changes by itself, so a caller that only disposes leaves writes going to
+  /// an empty collection.
   void dispose() {
     _sources.clear();
     _specifications.clear();

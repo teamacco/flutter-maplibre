@@ -182,7 +182,9 @@ final class StyleLayers extends Iterable<StyleLayer> {
   }
 
   /// Detaches every layer object, when the style goes away. Platforms call it
-  /// after [markReplaced].
+  /// after [markReplaced]. It empties the collection but does not stop
+  /// changes by itself, so a caller that only disposes leaves writes going to
+  /// an empty collection.
   void dispose() {
     final hadCallbacks = _layers.any((layer) => layer._hasCallbacks);
     _layers.forEach(_detach);
