@@ -7,6 +7,10 @@ part of 'source.dart';
 /// update replaces the object in this collection. Changes apply to the
 /// collection at once and reach the map in the order they were made.
 ///
+/// Setting a new style detaches the collection, since the map's source
+/// commands reach that style from then on. It still reads the sources of the
+/// style on screen until that one loads, but takes no change.
+///
 /// {@category Style}
 /// {@subCategory Style Sources}
 final class StyleSources extends Iterable<Source> {
@@ -23,6 +27,9 @@ final class StyleSources extends Iterable<Source> {
   /// The source JSON of the sources as they were specified, without what a
   /// TileJSON resource added: an update must not carry that over.
   final _specifications = <String, Map<String, Object?>>{};
+
+  var _replaced = false;
+  var _warnedReplaced = false;
 
   /// The part of the map that owns some of the sources, see
   /// [setStyleSourcesOwner].
@@ -63,6 +70,7 @@ final class StyleSources extends Iterable<Source> {
   ///
   /// Fails with an [ArgumentError] if its id is taken.
   Future<void> add(Source source) async {
+    if (_detachedOrWarn()) return;
     if (_sources.containsKey(source.id)) {
       throw ArgumentError.value(
         source.id,
@@ -89,6 +97,7 @@ final class StyleSources extends Iterable<Source> {
   /// Fails with a [StateError] if layers still use the source: the map would
   /// keep it. Remove them first.
   Future<void> remove(String id) async {
+    if (_detachedOrWarn()) return;
     if (!_sources.containsKey(id)) return;
     final users = [
       for (final layer in _layers?.call() ?? const <StyleLayer>[])
@@ -109,6 +118,7 @@ final class StyleSources extends Iterable<Source> {
   /// The source of a layer of [MapLibreMap.layers] gets its data from that
   /// list: change the list instead.
   Future<void> updateGeoJsonData(String id, GeoJsonData data) async {
+    if (_detachedOrWarn()) return;
     _warnIfOwned(id);
     _sources[id] = _sourceOfType<GeoJsonSource>(id)._withData(data);
     await _backend.setGeoJsonData(id, data);
@@ -119,6 +129,7 @@ final class StyleSources extends Iterable<Source> {
   /// The source of a layer of [MapLibreMap.layers] gets its data from that
   /// list: change the list instead.
   Future<void> updateGeoJsonUrl(String id, String url) async {
+    if (_detachedOrWarn()) return;
     _warnIfOwned(id);
     _sources[id] = _sourceOfType<GeoJsonSource>(id)._withUrl(url);
     await _backend.setGeoJsonUrl(id, url);
@@ -126,6 +137,7 @@ final class StyleSources extends Iterable<Source> {
 
   /// Moves the corners of the image source [id] to [coordinates].
   Future<void> updateImageCoordinates(String id, LngLatQuad coordinates) async {
+    if (_detachedOrWarn()) return;
     final source = _sourceOfType<ImageSource>(id);
     _sources[id] = switch (source) {
       ImageSourceUrl(:final url) => ImageSourceUrl(
@@ -153,6 +165,7 @@ final class StyleSources extends Iterable<Source> {
   /// the layers of the source are removed and added again, which [StyleLayer]
   /// objects don't notice.
   Future<void> updateTiles(String id, List<String> tiles) async {
+    if (_detachedOrWarn()) return;
     final specification = {..._tileSpecification(id), 'tiles': tiles}
       ..remove('url');
     _replaceTileSource(id, specification);
@@ -166,6 +179,7 @@ final class StyleSources extends Iterable<Source> {
   /// layers of the source are removed and added again, which [StyleLayer]
   /// objects don't notice.
   Future<void> updateTileJsonUrl(String id, String url) async {
+    if (_detachedOrWarn()) return;
     final specification = {..._tileSpecification(id), 'url': url}
       ..remove('tiles');
     _replaceTileSource(id, specification);
@@ -208,10 +222,32 @@ final class StyleSources extends Iterable<Source> {
     return true;
   }
 
-  /// Forgets every source, when the style goes away. Platforms call it.
+  /// Detaches the collection, when a new style is set on the map. Platforms
+  /// call it. The collection still reads the sources of the style on screen,
+  /// but takes no change, since the map's commands reach the new style.
+  void markReplaced() => _replaced = true;
+
+  /// Forgets every source, when the style goes away. Platforms call it after
+  /// [markReplaced].
   void dispose() {
     _sources.clear();
     _specifications.clear();
+  }
+
+  /// Whether the map's source commands no longer reach the style of this
+  /// collection. A change to it would reach the style that replaced it, which
+  /// is likely a mistake, so debug builds warn once.
+  bool _detachedOrWarn() {
+    if (_replaced && !_warnedReplaced) {
+      _warnedReplaced = true;
+      if (kDebugMode) {
+        debugPrint(
+          'maplibre: the style was replaced, so changing its sources no '
+          'longer updates the map.',
+        );
+      }
+    }
+    return _replaced;
   }
 
   T _sourceOfType<T extends Source>(String id) {

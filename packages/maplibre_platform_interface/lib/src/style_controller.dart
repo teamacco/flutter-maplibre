@@ -277,7 +277,19 @@ abstract class StyleController {
   /// https://maplibre.org/maplibre-style-spec/projection/
   void setProjection(Expression<MapProjection> projection);
 
-  /// Clean up resources.
+  /// Detaches the controller from the style it belongs to, and cleans up
+  /// resources.
+  ///
+  /// The controller is already detached before this, from the moment a new
+  /// style is set on the map: the map's style commands reach that style from
+  /// then on, so a call that would change the map does nothing, and debug
+  /// builds warn once per collection. [layers] and [sources] still read the
+  /// style on screen until the new one loads, and are empty from here on, as
+  /// is [attributions].
+  ///
+  /// Callers may still hold the controller, for instance an operation
+  /// suspended on an await, so an implementation checks again after each
+  /// await, before it reaches the map.
   void dispose();
 }
 

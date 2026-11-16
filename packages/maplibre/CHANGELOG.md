@@ -44,6 +44,13 @@
 - Maps no longer turn black when the app runs a second Flutter engine, such
   as one of a background service, and that engine stops; not on web
   ([#677](https://github.com/maplibre/flutter-maplibre/issues/677)).
+- A change made through the `StyleController` of a style that a new style
+  replaced no longer reaches the new one. From the moment the new style is
+  set, the `layers` and `sources` of the old controller take no change, the
+  setters of its `StyleLayer` objects no longer reach the map, and
+  `addImage`, `removeImage`, `setProjection` and `setPlacementTransitions` do
+  nothing. The collections still read the style on screen until the new one
+  loads, and `attributions` still reports it. Debug builds warn once.
 - Two fingers resting on the map before a pinch, twist or tilt are no longer a
   long click, which kept the pinch from moving the camera; a long click is a
   hold of one finger

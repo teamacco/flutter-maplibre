@@ -748,6 +748,8 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
 
   /// Loads [style], see [MapOptions.style].
   void _setStyle(MapStyle style) {
+    // The map's style commands reach the new style from here on.
+    this.style?.markReplaced();
     // The layers of MapLibreMap.layers go with the old style.
     detachAnnotations();
     _map.once(

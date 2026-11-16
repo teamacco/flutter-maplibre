@@ -12,10 +12,33 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
   final interop.JsMap _map;
   final num _placementFadeDuration;
 
+  var _disposed = false;
+
+  /// A newer style was set on the map, so the map's style commands no
+  /// longer reach this one.
+  bool get _replaced => _disposed || _replacedByNewer;
+  var _replacedByNewer = false;
+
+  /// The attributions of the style this controller belongs to, read once the
+  /// map holds the style that replaced it.
+  List<String>? _frozenAttributions;
+
+  /// Called when a newer style is set on the map, before its load is queued.
+  void markReplaced() {
+    if (_replacedByNewer) return;
+    // The map is about to hold the other style, so these can no longer be
+    // read from it, while the style of this controller is still on screen.
+    _frozenAttributions = attributions;
+    _replacedByNewer = true;
+    layers.markReplaced();
+    sources.markReplaced();
+  }
+
   /// Sets gl-js's fade duration, which the map reads on every frame: 0 shows
   /// and hides symbols at once and places them on every frame.
   @override
   Future<void> setPlacementTransitions({required bool enabled}) async {
+    if (_replaced) return;
     _map.fadeDuration = enabled ? _placementFadeDuration : 0;
   }
 
@@ -74,10 +97,17 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
     double pixelRatio = 1,
     StyleImageOptions options = const StyleImageOptions(),
   }) async {
+    if (_replaced) return;
     // The browser decodes the image: Flutter's skwasm renderer gives decoded
     // images the size of the view.
     final blob = Blob([bytes.toJS].toJS);
     final bitmap = await window.createImageBitmap(blob).toDart;
+    // A new style can be set on the map while the browser decodes the image.
+    // The bitmap holds decoded pixels, so it is released rather than dropped.
+    if (_replaced) {
+      bitmap.close();
+      return;
+    }
     _map.addImage(id, bitmap, options.toJs(pixelRatio));
   }
 
@@ -88,6 +118,7 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
     double pixelRatio = 1,
     StyleImageOptions options = const StyleImageOptions(),
   }) async {
+    if (_replaced) return;
     // Raw pixels, as Flutter's skwasm renderer encodes some images to PNG at
     // the size of the view.
     final data = await image.toByteData(
@@ -96,6 +127,8 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
     if (data == null) {
       throw StateError('Failed to read the pixels of the image "$id".');
     }
+    // A new style can be set on the map while the pixels are read.
+    if (_replaced) return;
     _map.addImage(
       id,
       interop.ImageSpecification(
@@ -108,7 +141,12 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
   }
 
   @override
-  Future<void> removeImage(String id) async => _map.removeImage(id);
+  Future<void> removeImage(String id) async {
+    // The image of a style that went away: the id may be taken on the style
+    // that replaced it.
+    if (_replaced) return;
+    _map.removeImage(id);
+  }
 
   @override
   Future<void> addLayer(
@@ -179,6 +217,9 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
 
   @override
   List<String> get attributions {
+    if (_disposed) return const [];
+    // The map holds the style that replaced this one.
+    if (_frozenAttributions case final frozen?) return frozen;
     final sources =
         _map.getStyle()?.sources.dartify() as Map<Object?, Object?>?;
     if (sources == null) return const [];
@@ -340,6 +381,9 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
 
   @override
   void dispose() {
+    _disposed = true;
+    // The collections take no further change, and forget the style.
+    markReplaced();
     layers.dispose();
     sources.dispose();
     // Interop members can't be torn off for forEach.
@@ -378,10 +422,12 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
   }
 
   @override
-  void setProjection(Expression<MapProjection> projection) =>
-      _map.setProjection(
-        interop.ProjectionSpecification(type: projection.toJson().jsify()!),
-      );
+  void setProjection(Expression<MapProjection> projection) {
+    if (_replaced) return;
+    _map.setProjection(
+      interop.ProjectionSpecification(type: projection.toJson().jsify()!),
+    );
+  }
 }
 
 /// A transparent PNG of one pixel, the image of an image source until its

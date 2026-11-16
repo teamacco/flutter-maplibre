@@ -198,6 +198,33 @@ void main() {
       expect(backend.calls, isEmpty);
     });
 
+    test('a new style detaches the layer objects', () {
+      final layer = layers['top']! as LineStyleLayer;
+      layers.markReplaced();
+      backend.calls.clear();
+      // The setters of a layer reach the map on their own, so an animation
+      // running through a style change must not write to the new style.
+      layer
+        ..width = const .literal(2)
+        ..filter = null
+        ..maxZoom = 10
+        ..visible = false;
+      expect(layer.width, const Literal<num>(2));
+      expect(backend.calls, isEmpty);
+    });
+
+    test('a new style stops changes, keeping what is on screen', () async {
+      layers.markReplaced();
+      backend.calls.clear();
+      // The style that replaced this one must not get these, while the
+      // layers of the style still on screen stay readable.
+      await layers.add(FillStyleLayer(id: 'a', sourceId: 'src'));
+      await layers.remove('top');
+      layers.move('top', belowLayerId: 'bottom');
+      expect(ids(), ['bottom', 'middle', 'top']);
+      expect(backend.calls, isEmpty);
+    });
+
     test('a layer not on a map sends nothing', () {
       LineStyleLayer(id: 'x', sourceId: 'src').width = const .literal(2);
       expect(backend.calls, isEmpty);
@@ -429,6 +456,28 @@ void main() {
       await sources.add(const GeoJsonSource.url(id: 'a', url: 'https://a'));
       sources.dispose();
       expect(sources, isEmpty);
+    });
+
+    test('a new style stops changes, keeping what is on screen', () async {
+      await sources.add(const VectorSource.url(id: 'v', url: 'https://a'));
+      await sources.add(const GeoJsonSource.url(id: 'g', url: 'https://g'));
+      await sources.add(
+        const ImageSource.url(id: 'i', url: 'https://i', coordinates: quad),
+      );
+      sources.markReplaced();
+      backend.calls.clear();
+      // The style that replaced this one must not get these, and an update
+      // of a source it no longer owns is not an error either.
+      await sources.add(const GeoJsonSource.url(id: 'b', url: 'https://b'));
+      await sources.remove('v');
+      await sources.updateGeoJsonData('g', const .text('{}'));
+      await sources.updateGeoJsonUrl('g', 'https://d');
+      await sources.updateImageCoordinates('i', quad);
+      await sources.updateTiles('v', const ['https://t']);
+      await sources.updateTileJsonUrl('v', 'https://b');
+      // The sources of the style still on screen stay readable.
+      expect(sources.map((source) => source.id), ['v', 'g', 'i']);
+      expect(backend.calls, isEmpty);
     });
   });
 }
