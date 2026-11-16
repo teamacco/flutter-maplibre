@@ -134,7 +134,7 @@ class StyleControllerWeb extends StyleController implements StyleBackend {
       interop.ImageSpecification(
         width: image.width,
         height: image.height,
-        data: data.buffer.asUint8List().toJS,
+        data: Uint8List.sublistView(data).toJS,
       ),
       options.toJs(pixelRatio),
     );

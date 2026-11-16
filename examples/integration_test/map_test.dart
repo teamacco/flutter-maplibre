@@ -320,13 +320,19 @@ void runTests() {
 
       final image = await decodeImageFromList(png!);
       addTearDown(image.dispose);
-      expect(image.width, map.size.width.round());
-      expect(image.height, map.size.height.round());
+      // toImage rounds the size up to the next whole pixel.
+      expect(image.width, map.size.width.ceil());
+      expect(image.height, map.size.height.ceil());
 
       final pixels = await image.toByteData();
       final middle = ((image.height ~/ 2) * image.width + image.width ~/ 2) * 4;
       // The background of the test style, which only the map draws.
-      expect(pixels!.buffer.asUint8List(middle, 4), [0xdd, 0xdd, 0xdd, 0xff]);
+      expect(Uint8List.sublistView(pixels!, middle, middle + 4), [
+        0xdd,
+        0xdd,
+        0xdd,
+        0xff,
+      ]);
     }, skip: kIsWeb);
   });
 }

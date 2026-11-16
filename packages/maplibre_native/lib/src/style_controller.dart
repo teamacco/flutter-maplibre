@@ -42,7 +42,9 @@ class StyleControllerNative extends StyleController implements StyleBackend {
   var _disposed = false;
 
   /// A newer style was set on the map, so the map's style commands no
-  /// longer reach this one.
+  /// longer reach this one. A controller that was replaced while it loaded
+  /// never becomes the style of the map.
+  bool get replaced => _replaced;
   bool get _replaced => _disposed || _replacedByNewer;
   var _replacedByNewer = false;
 
@@ -318,7 +320,7 @@ class StyleControllerNative extends StyleController implements StyleBackend {
       width: image.width,
       height: image.height,
       stride: image.width * 4,
-      pixels: data.buffer.asUint8List(),
+      pixels: Uint8List.sublistView(data),
     );
   }
 

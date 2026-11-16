@@ -173,7 +173,11 @@ abstract interface class MapController {
   /// as a bug report that captures the screen: the map draws in a texture of
   /// its own, which such a capture leaves out.
   ///
-  /// Returns null before the map has drawn its first frame.
+  /// The map must have drawn a frame, which it has not right after it was
+  /// created: wait for [MapLibreMap.onRenderFrame] before capturing from
+  /// [MapLibreMap.onMapCreated] or [MapLibreMap.onStyleLoaded]. Returns null
+  /// while the map has no size, and, in debug builds, while it has yet to be
+  /// drawn.
   ///
   /// The web shows the map in an HTML element rather than in a texture, and
   /// MapLibre GL JS clears its drawing buffer after each frame, so this

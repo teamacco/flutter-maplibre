@@ -494,7 +494,10 @@ class MapLibreMapStateNative extends MapLibreMapState {
     _loadingStyle = styleController;
     // The style is only handed out once its layers and sources are known.
     await styleController.load();
-    if (_disposed || _loadingStyle != styleController) {
+    // A style set while this one loaded leaves it empty and detached.
+    if (_disposed ||
+        _loadingStyle != styleController ||
+        styleController.replaced) {
       styleController.dispose();
       return;
     }

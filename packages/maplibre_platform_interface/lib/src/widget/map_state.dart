@@ -121,6 +121,10 @@ abstract class MapLibreMapState extends State<MapLibreMap>
   Future<Uint8List?> takeSnapshot({double? pixelRatio}) async {
     final boundary = _snapshotBoundary.currentContext?.findRenderObject();
     if (boundary is! RenderRepaintBoundary || !boundary.hasSize) return null;
+    // toImage needs the boundary to have painted. Waiting for a frame here
+    // would deadlock a caller that drives the frames itself, such as a
+    // widget test, so this only reports the mistake.
+    if (boundary.debugNeedsPaint) return null;
     final image = await boundary.toImage(
       pixelRatio: pixelRatio ?? MediaQuery.devicePixelRatioOf(context),
     );
